@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nigerian Language Translator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 600px;
+        }
+
+        h1 {
+            color: #2d3748;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+
+        .language-select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 16px;
+            color: #2d3748;
+            background: white;
+            cursor: pointer;
+        }
+
+        .button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            margin-bottom: 20px;
+            transition: background 0.3s ease;
+        }
+
+        .button:hover {
+            background: #764ba2;
+        }
+
+        .button:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+        }
+
+        .button.recording {
+            background: #e53e3e;
+        }
+
+        .result-container {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .result-container.show {
+            display: block;
+        }
+
+        .text-box {
+            margin-bottom: 15px;
+        }
+
+        .text-box h3 {
+            color: #4a5568;
+            margin-bottom: 5px;
+        }
+
+        .text-box p {
+            color: #2d3748;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            min-height: 40px;
+        }
+
+        .audio-player {
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .error {
+            color: #e53e3e;
+            text-align: center;
+            margin-top: 10px;
+            display: none;
+            padding: 10px;
+            background: #fff5f5;
+            border-radius: 6px;
+            border: 1px solid #feb2b2;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        .recording-indicator {
+            display: none;
+            text-align: center;
+            color: #e53e3e;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .recording-indicator.show {
+            display: block;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            color: #4a5568;
+            margin: 10px 0;
+        }
+
+        .loading.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Nigerian Language Translator</h1>
+        
+        <select id="languageSelect" class="language-select">
+            <option value="">Select a language</option>
+            {% for key, (name, code) in languages.items() %}
+            <option value="{{ code }}">{{ name }}</option>
+            {% endfor %}
+        </select>
+
+        <button id="recordButton" class="button">Start Recording</button>
+        <div id="recordingIndicator" class="recording-indicator">Recording... Click again to stop</div>
+        <div id="loading" class="loading">Processing your speech...</div>
+        
+        <div id="error" class="error"></div>
+        
+        <div id="resultContainer" class="result-container">
+            <div class="text-box">
+                <h3>Original Text:</h3>
+                <p id="originalText"></p>
+            </div>
+            <div class="text-box">
+                <h3>Translation:</h3>
+                <p id="translatedText"></p>
+            </div>
+            <audio id="audioPlayer" class="audio-player" controls></audio>
+        </div>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        const recordButton = document.getElementById('recordButton');
+        const recordingIndicator = document.getElementById('recordingIndicator');
+        const resultContainer = document.getElementById('resultContainer');
+        const originalText = document.getElementById('originalText');
+        const translatedText = document.getElementById('translatedText');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const error = document.getElementById('error');
+        const loading = document.getElementById('loading');
+        const languageSelect = document.getElementById('languageSelect');
+
+        async function setupRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        channelCount: 1,
+                        sampleRate: 16000
+                    } 
+                });
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'audio/webm'
+                });
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const reader = new FileReader();
+                    reader.readAsDataURL(audioBlob);
+                    reader.onloadend = () => {
+                        const base64Audio = reader.result;
+                        translateAudio(base64Audio);
+                    };
+                };
+            } catch (err) {
+                error.textContent = 'Error accessing microphone: ' + err.message;
+                error.classList.add('show');
+            }
+        }
+
+        async function translateAudio(audioData) {
+            const targetLang = languageSelect.value;
+            if (!targetLang) {
+                error.textContent = 'Please select a language first';
+                error.classList.add('show');
+                return;
+            }
+
+            loading.classList.add('show');
+            error.classList.remove('show');
+            resultContainer.classList.remove('show');
+
+            try {
+                const response = await fetch('/translate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        audio: audioData,
+                        target_lang: targetLang
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.error) {
+                    error.textContent = data.error;
+                    error.classList.add('show');
+                    return;
+                }
+
+                originalText.textContent = data.original_text || 'No text recognized';
+                translatedText.textContent = data.translated_text || 'No translation available';
+                
+                if (data.audio) {
+                    audioPlayer.src = 'data:audio/mp3;base64,' + data.audio;
+                    resultContainer.classList.add('show');
+                }
+                
+                error.classList.remove('show');
+            } catch (err) {
+                error.textContent = 'Error during translation: ' + err.message;
+                error.classList.add('show');
+            } finally {
+                loading.classList.remove('show');
+            }
+        }
+
+        recordButton.addEventListener('click', async () => {
+            if (!mediaRecorder) {
+                await setupRecording();
+            }
+
+            if (mediaRecorder.state === 'inactive') {
+                mediaRecorder.start();
+                recordButton.textContent = 'Stop Recording';
+                recordButton.classList.add('recording');
+                recordingIndicator.classList.add('show');
+                resultContainer.classList.remove('show');
+                error.classList.remove('show');
+            } else {
+                mediaRecorder.stop();
+                recordButton.textContent = 'Start Recording';
+                recordButton.classList.remove('recording');
+                recordingIndicator.classList.remove('show');
+            }
+        });
+    </script>
+</body>
+</html> 
