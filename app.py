@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 import speech_recognition as sr
 from googletrans import Translator
-from gtts import gTTS
+import pyttsx3
 import os
 import base64
 import io
@@ -70,12 +70,17 @@ def translate_text(text, target_lang):
 
 def text_to_speech(text, lang):
     try:
-        # Create gTTS object
-        tts = gTTS(text=text, lang=lang)
+        # Initialize the text-to-speech engine
+        engine = pyttsx3.init()
+        
+        # Configure the engine
+        engine.setProperty('rate', 150)  # Speed of speech
+        engine.setProperty('volume', 1.0)  # Volume level
         
         # Save to temporary file
         audio_file = "temp_audio.mp3"
-        tts.save(audio_file)
+        engine.save_to_file(text, audio_file)
+        engine.runAndWait()
         
         # Read the audio file and convert to base64
         with open(audio_file, 'rb') as audio:
