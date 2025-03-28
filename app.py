@@ -6,7 +6,6 @@ import os
 import base64
 import io
 import wave
-import numpy as np
 from pydub import AudioSegment
 
 app = Flask(__name__)
