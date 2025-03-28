@@ -1,12 +1,13 @@
 from flask import Flask, render_template, request, jsonify
 import speech_recognition as sr
 from googletrans import Translator
-import pyttsx3
+from gtts import gTTS
 import os
 import base64
 import io
 import wave
 from pydub import AudioSegment
+import requests
 
 app = Flask(__name__)
 
@@ -70,17 +71,12 @@ def translate_text(text, target_lang):
 
 def text_to_speech(text, lang):
     try:
-        # Initialize the text-to-speech engine
-        engine = pyttsx3.init()
-        
-        # Configure the engine
-        engine.setProperty('rate', 150)  # Speed of speech
-        engine.setProperty('volume', 1.0)  # Volume level
+        # Create gTTS object with slow=False for normal speed
+        tts = gTTS(text=text, lang=lang, slow=False)
         
         # Save to temporary file
         audio_file = "temp_audio.mp3"
-        engine.save_to_file(text, audio_file)
-        engine.runAndWait()
+        tts.save(audio_file)
         
         # Read the audio file and convert to base64
         with open(audio_file, 'rb') as audio:
@@ -92,7 +88,19 @@ def text_to_speech(text, lang):
         return audio_base64
     except Exception as e:
         print(f"Text-to-speech error: {str(e)}")  # Debug print
-        return f"Error in text-to-speech: {str(e)}"
+        # If the language is not supported, try using English as fallback
+        try:
+            print("Attempting fallback to English...")  # Debug print
+            tts = gTTS(text=text, lang='en', slow=False)
+            audio_file = "temp_audio.mp3"
+            tts.save(audio_file)
+            with open(audio_file, 'rb') as audio:
+                audio_base64 = base64.b64encode(audio.read()).decode('utf-8')
+            os.remove(audio_file)
+            return audio_base64
+        except Exception as fallback_error:
+            print(f"Fallback error: {str(fallback_error)}")  # Debug print
+            return f"Error in text-to-speech: {str(e)}"
 
 @app.route('/')
 def index():
